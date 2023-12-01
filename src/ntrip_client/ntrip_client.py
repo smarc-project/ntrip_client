@@ -144,6 +144,7 @@ class NTRIPClient:
     # Properly handle the response
     if any(success in response for success in _SUCCESS_RESPONSES):
       self._connected = True
+      self.socket_is_open_flag = True
 
     # Some debugging hints about the kind of error we received
     known_error = False
