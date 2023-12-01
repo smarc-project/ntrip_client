@@ -93,6 +93,7 @@ class NTRIPClient:
     #Control flags
     self.in_timeout_flag = False
     self.in_blocking_io_error_flag = False
+    self.socket_is_open_flag = False
 
   def connect(self):
     # Create a socket object that we will use to connect to the server
@@ -172,6 +173,7 @@ class NTRIPClient:
   def disconnect(self):
     # Disconnect the socket
     self._connected = False
+    self.socket_is_open_flag = False
     try:
       if self._server_socket:
         self._server_socket.shutdown(socket.SHUT_RDWR)
@@ -317,25 +319,31 @@ class NTRIPClient:
       # this will try to read bytes without blocking and also without removing them from buffer (peek only)
       data = self._server_socket.recv(_CHUNK_SIZE, socket.MSG_DONTWAIT | socket.MSG_PEEK)
       if len(data) == 0:
+        self.socket_is_open_flag = False
         return False
     except BlockingIOError as exBlockingIOError:
       self.in_blocking_io_error_flag = True
       self._logwarn('BlockingIOError. Ex:{}'.format(exBlockingIOError))
+      self.socket_is_open_flag = True
       return True  # socket is open and reading from it would block
     except ConnectionResetError as exConnectionResetError:
       self._logwarn('Connection reset by peer. Ex:{}'.format(exConnectionResetError))
+      self.socket_is_open_flag = False
       return False  # socket was closed for some other reason
     except socket.timeout as exTimeOut:
       self.in_timeout_flag = True
-      self._logwarn('Socket timeout. Ex: {}'.format(exTimeOut))
+      #self._logwarn('Socket timeout. Ex: {}'.format(exTimeOut))
+      self.socket_is_open_flag = True
       return True  # timeout likely means that the socket is still open
     except Exception as e:
       self._logwarn('Socket appears to be closed')
       self._logwarn('Exception: {}'.format(e))
+      self.socket_is_open_flag = False
       return False
     self.in_blocking_io_error_flag = False
     self.in_timeout_flag = False
+    self.socket_is_open_flag = True
     return True
 
   def is_connect(self):
-    return self._connected and self._socket_is_open()
+    return self._connected and self.socket_is_open_flag
