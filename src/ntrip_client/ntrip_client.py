@@ -90,6 +90,11 @@ class NTRIPClient:
     self.reconnect_attempt_wait_seconds = self.DEFAULT_RECONNECT_ATEMPT_WAIT_SECONDS
     self.rtcm_timeout_seconds = self.DEFAULT_RTCM_TIMEOUT_SECONDS
 
+    #Control flags
+    self.in_timeout_flag = False
+    self.in_blocking_io_error_flag = False
+    self.socket_is_open_flag = False
+
   def connect(self):
     # Create a socket object that we will use to connect to the server
     self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -139,6 +144,7 @@ class NTRIPClient:
     # Properly handle the response
     if any(success in response for success in _SUCCESS_RESPONSES):
       self._connected = True
+      self.socket_is_open_flag = True
 
     # Some debugging hints about the kind of error we received
     known_error = False
@@ -168,6 +174,7 @@ class NTRIPClient:
   def disconnect(self):
     # Disconnect the socket
     self._connected = False
+    self.socket_is_open_flag = False
     try:
       if self._server_socket:
         self._server_socket.shutdown(socket.SHUT_RDWR)
@@ -247,8 +254,12 @@ class NTRIPClient:
       self._first_rtcm_received = False
 
     # Check if there is any data available on the socket
-    read_sockets, _, _ = select.select([self._server_socket], [], [], 0)
-    if not read_sockets:
+    try:
+      read_sockets, _, _ = select.select([self._server_socket], [], [], 0)
+      if not read_sockets:
+        return []
+    except Exception as e:
+      self._logerr('Error while checking for data on socket')
       return []
 
     # Since we only ever pass the server socket to the list of read sockets, we can just read from that
@@ -309,16 +320,31 @@ class NTRIPClient:
       # this will try to read bytes without blocking and also without removing them from buffer (peek only)
       data = self._server_socket.recv(_CHUNK_SIZE, socket.MSG_DONTWAIT | socket.MSG_PEEK)
       if len(data) == 0:
+        self.socket_is_open_flag = False
         return False
-    except BlockingIOError:
+    except BlockingIOError as exBlockingIOError:
+      self.in_blocking_io_error_flag = True
+      self._logwarn('BlockingIOError. Ex:{}'.format(exBlockingIOError))
+      self.socket_is_open_flag = True
       return True  # socket is open and reading from it would block
-    except ConnectionResetError:
-      self._logwarn('Connection reset by peer')
+    except ConnectionResetError as exConnectionResetError:
+      self._logwarn('Connection reset by peer. Ex:{}'.format(exConnectionResetError))
+      self.socket_is_open_flag = False
       return False  # socket was closed for some other reason
-    except socket.timeout:
+    except socket.timeout as exTimeOut:
+      self.in_timeout_flag = True
+      #self._logwarn('Socket timeout. Ex: {}'.format(exTimeOut))
+      self.socket_is_open_flag = True
       return True  # timeout likely means that the socket is still open
     except Exception as e:
       self._logwarn('Socket appears to be closed')
       self._logwarn('Exception: {}'.format(e))
+      self.socket_is_open_flag = False
       return False
+    self.in_blocking_io_error_flag = False
+    self.in_timeout_flag = False
+    self.socket_is_open_flag = True
     return True
+
+  def is_connect(self):
+    return self._connected and self.socket_is_open_flag
