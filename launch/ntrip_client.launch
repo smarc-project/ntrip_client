@@ -6,10 +6,9 @@
   <!-- Declare arguments with default values -->
   <arg name="namespace"              default = "ntrip_client" />
   <arg name="node_name"              default = "ntrip_client" />
-  <arg name="debug"                  default = "false" />
   <arg name="host"                   default = "nrtk-swepos.lm.se" />
   <arg name="port"                   default = "80" />
-  <arg name="mountpoint"             default = "RTCM3_GPS" />
+  <arg name="mountpoint"             default = "RTCM3_GNSS" />
   <arg name="authenticate"           default = "true" />
   <arg name="username"               default = "SMaRCRTK1" />
   <arg name="password"               default = "303595" />

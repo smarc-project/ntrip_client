@@ -66,7 +66,7 @@ class RTCMParser:
       # Find the start of the RTCM 3.2 packet
       ascii_values = []
       for ch in combined_buffer:
-        ascii_values.append(ord(ch))
+        ascii_values.append(ch)
       if ascii_values[index] == _RTCM_3_2_PREAMBLE:
         # Make sure we have enough data to find the length
         if len(ascii_values) <= index + 2:
